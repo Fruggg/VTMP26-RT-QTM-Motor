@@ -34,7 +34,8 @@ async def main():
     live_data = []
     live_time = []
     
-    connection = await qtm_rt.connect("35.3.96.104", version="1.24")
+    # connection = await qtm_rt.connect("35.3.96.104", version="1.24")
+    connection = await qtm_rt.connect("10.177.37.44", version="1.24") # for studio
     distance_history = []
     if connection is None:
         print("Failed to connect")
@@ -61,7 +62,7 @@ async def main():
             for i in position:
                 new_pos.append(float(i))
             positions.append([body_name, new_pos])
-            
+            # print(positions)
         distance = abs(positions[0][1][1] - positions[1][1][1])
         distance = float('{:.2f}'.format(distance))
         distance_history.append(distance)

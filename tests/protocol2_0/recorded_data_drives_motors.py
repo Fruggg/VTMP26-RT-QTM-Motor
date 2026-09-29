@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import time
 import xml.etree.ElementTree as ET
 from matplotlib import animation, style
@@ -32,25 +33,35 @@ DXL_MINIMUM_POSITION_VALUE = 0
 DXL_MAXIMUM_POSITION_VALUE = 4095
 
 packet_counter = 0 
-packet_modulo = 7
+packet_modulo = 9
 
-BAUDRATE = 57600
+init_motor_1 = 0
+init_motor_2 = 0
+
+# todo implement startup
+
+BAUDRATE = 2000000
 PROTOCOL_VERSION = 2.0
 
 left_motor_id = 1
 right_motor_id = 2
+flip_left = True
+flip_right = False
 clap_percent = 0
-DEVICENAME = '/dev/tty.usbserial-FT763GF8'
+# DEVICENAME = '/dev/tty.usbserial-FT763GF8'
+DEVICENAME = '/dev/tty.usbserial-FT6S4EG7'
 
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 
-#todo clean this shit!
+#todo clean this crap!
 
 
 # some constants
-max_distance = 542.92 # units. take or leave it. chud.
-min_distance = 80.26 
+# max_distance = 1482 # Evan, wingspan
+max_distance = 879 # Zeke, Elbow
+# min_distance = 68.05 # evan
+min_distance = 77 # zeke
 
 FLAG_print_everything_because_we_like_wasting_time = False
 
@@ -91,16 +102,15 @@ def set_motor_positon(signal, sign, ID):
     # Goals      will be respectively +- 4095
     
     signal = signal * sign
-    
+    print(signal + 2048)
+    input = min(signal + 2048, 3103) 
     dxl_comm_result, dxl_error = packetHandler.write4ByteTxRx(
-        portHandler, ID, ADDR_GOAL_POSITION, signal
+        portHandler, ID, ADDR_GOAL_POSITION, input #(?)
     )
-    
-  
 
 def update_motors(signal):
     for motor in [left_motor_id , right_motor_id]:
-        set_motor_positon(signal, 1 if motor == 0 else -1 ,motor)
+        set_motor_positon(signal, 1 if motor == 1 else -1 ,motor)
 
 
 def create_body_index(xml_string):
@@ -119,6 +129,9 @@ def body_enabled_count(xml_string):
 
 
 async def main():
+    # init_motor_1, dxl_comm_result, dxl_error = packetHandler.read4ByteTxRx(portHandler, left_motor_id, ADDR_PRESENT_POSITION)
+    # init_motor_2, dxl_comm_result, dxl_error = packetHandler.read4ByteTxRx(portHandler, right_motor_id, ADDR_PRESENT_POSITION)
+    print('set init position!')
     global clap_percent
     start_time = time.time()
     x = [0]
@@ -126,7 +139,9 @@ async def main():
     live_data = []
     live_time = []
     
-    connection = await qtm_rt.connect("35.3.96.104", version="1.24")
+    #For Davis studio141.213.186.223
+    connection = await qtm_rt.connect("141.213.186.223", version="1.24")
+    # connection = await qtm_rt.connect("10.130.130.44", version="1.24")
     distance_history = []
     if connection is None:
         print("Failed to connect")
@@ -150,27 +165,48 @@ async def main():
             #     packet.framenumber, info.body_count)
             # )
 
-            positions = []
+            positions = collections.deque(5*[['', [-1, -1, -1]]], 5)
             for i, body_data in enumerate(bodies):
                 body_name = index_to_body.get(i, f"Body_{i}")
                 position, rotation = body_data
                 new_pos = []
                 for i in position:
                     new_pos.append(float(i))
-                positions.append([body_name, new_pos])
+                positions.appendleft([body_name, new_pos])
                 
-            distance = abs(positions[0][1][1] - positions[1][1][1])
-            distance = float('{:.2f}'.format(distance))
+            print(len(new_pos),len(positions),len(rotation),len(new_pos))
+            distance_x = abs(positions[0][1][0] - positions[1][1][0])
+            distance_y = abs(positions[0][1][1] - positions[1][1][1])
+            distance_z = abs(positions[0][1][2] - positions[1][1][2])
+
+            # distance = float('{:.2f}'.format(distance))
+            distance_norm = np.sqrt(pow(distance_x,2) + pow(distance_y,2) + pow(distance_z,2))
+            distance_norm = distance_y            
+            distance_norm = float('{:.2f}'.format(distance_norm))
+            distance = distance_norm
             
+            # float('{:.2f}'.format(distance))
+
             # print(distance, f"max distance: {max(distance_history)}," f"min distance: {min(distance_history)}")
+            #! DONT TOUCH! update hte constants at the top
             clap_percent = distance / (max_distance - min_distance)
+            
+            # right increqase, left decrease to back off from clap
+            
             
             
             
             # print((clap_percent * 2048.0))
-            print("FUCK!       ", packet_counter)
-            # Why is the FUCKING SIGNAL WRONG GOD DAMN IT -sz
-            update_motors(int(clap_percent * 2048.0))
+            
+            # Why is the fricking SIGNAL WRONG GOD darn IT -sz
+            try: 
+                
+                # update_signal = int(clap_percent * 2048.0)
+                update_signal = int(clap_percent * 2048.0 / 2)
+                
+                update_motors(update_signal)
+            except:
+                pass
 
     while True:
         await connection.stream_frames(components=["6d"], on_packet=on_packet)
