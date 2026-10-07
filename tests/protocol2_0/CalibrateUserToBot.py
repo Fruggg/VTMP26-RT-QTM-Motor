@@ -98,6 +98,11 @@ partipants = [
     "Minspan" : 68.05,
     "Elbowspan" : None,
     "Wingspan" : 1482},
+    
+    {'Name' : "Sophie",
+    "Minspan" : 91.53,
+    "Elbowspan" : 1054,
+    "Wingspan" : None},
         
 ]
 
@@ -146,7 +151,8 @@ async def main():
     #For Davis studio141.213.186.223
     # connection = await qtm_rt.connect("141.213.186.223", version="1.24")
     # connection = await qtm_rt.connect("10.130.130.44", version="1.24")
-    connection = await qtm_rt.connect("10.231.3.44", version="1.24")
+    # connection = await qtm_rt.connect("10.231.3.44", version="1.24")
+    connection = await qtm_rt.connect("10.243.187.44", version="1.24")
     distance_history = []
     if connection is None:
         print("Failed to connect")
@@ -223,10 +229,10 @@ async def main():
             upper_filted = [data for data in filtered_data if data >= 0.95 * max(filtered_data)]
             lower_filted = [data for data in filtered_data if data <= min(filtered_data) + 0.05 * filt_range ]  
             
-            upper_avg = sum(upper_filted) / len(upper_filted)
-            lower_avg = sum(lower_filted) / len(lower_filted)
+            upper_avg = sum(upper_filted) / (len(upper_filted) or 1)
+            lower_avg = sum(lower_filted) / ((len(lower_filted)or 1))
             
-            current_phi = (distance / abs(upper_avg - lower_avg))
+            current_phi = (distance / (abs(upper_avg - lower_avg) or 1)) 
             
             # right increase, left decrease to back off from clap
             print(

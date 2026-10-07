@@ -95,7 +95,7 @@ partipants = [
         
 ]
 
-chosen_user = 'Zeke'
+chosen_name = 'Zeke'
 # WOW THIS IS SO DUMB LMAOOOOOOO
 spans_names = [key for key in partipants[0].keys() if key is not "Name"]
     
@@ -105,12 +105,12 @@ spans_names = [key for key in partipants[0].keys() if key is not "Name"]
 # This is over-engineered. So what!
 
 
-smallspan = [part for part in partipants if part["Name"].upper() == chosen_user.upper()][0]["Minspan"]
+smallspan = [part for part in partipants if part["Name"].upper() == chosen_name.upper()][0]["Minspan"]
 
 # Get the elbowspan if possible, else get wingspan
 bigspan = (
-    [part for part in partipants if part["Name"].upper() == chosen_user.upper()][0]["Elbowspan"] or 
-    [part for part in partipants if part["Name"].upper() == chosen_user.upper()][0]["Wingspan"])
+    [part for part in partipants if part["Name"].upper() == chosen_name.upper()][0]["Elbowspan"] or 
+    [part for part in partipants if part["Name"].upper() == chosen_name.upper()][0]["Wingspan"])
 
 FLAG_print_everything_because_we_like_wasting_time = False
 
@@ -197,7 +197,8 @@ async def main():
     #For Davis studio141.213.186.223
     # connection = await qtm_rt.connect("141.213.186.223", version="1.24")
     # connection = await qtm_rt.connect("10.130.130.44", version="1.24")
-    connection = await qtm_rt.connect("10.231.3.44", version="1.24")
+    # connection = await qtm_rt.connect("10.231.3.44", version="1.24")
+    connection = await qtm_rt.connect("10.243.187.44", version="1.24")
     distance_history = []
     if connection is None:
         print("Failed to connect")
