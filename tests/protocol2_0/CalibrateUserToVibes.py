@@ -117,7 +117,7 @@ async def main():
 
     # QTM connection
     connection = await qtm_rt.connect(
-        "10.243.187.44",
+        "141.213.186.223",
         version="1.24"
     )
 
@@ -148,7 +148,7 @@ async def main():
 
         if packet_counter != 0:
             return
-        print('c')
+        
         info, bodies = packet.get_6d()
 
         if len(bodies) < 2:
@@ -179,7 +179,7 @@ async def main():
         # First two QTM bodies
         pos1 = positions[0][1]
         pos2 = positions[1][1]
-        print('b')
+        
         distance_x = abs(pos1[0] - pos2[0])
         distance_y = abs(pos1[1] - pos2[1])
         distance_z = abs(pos1[2] - pos2[2])
@@ -195,7 +195,7 @@ async def main():
         # Add this measurement to persistent history
         distance_history_queue.append(distance)
 
-        print('a')
+        
         # Don't calculate statistics until we have enough data
         if len(distance_history_queue) < 20:
             print(
@@ -226,7 +226,7 @@ async def main():
 
         if len(filtered_data) == 0:
             return
-        print('e')
+        
         filt_min = min(filtered_data)
         filt_max = max(filtered_data)
 
@@ -234,7 +234,7 @@ async def main():
 
         if filt_range == 0:
             return
-        print('f1')
+        
         # Top 5%
         upper_filtered = [
             value
@@ -251,10 +251,10 @@ async def main():
 
         if len(upper_filtered) == 0:
             return
-        print('f2')
+        
         if len(lower_filtered) == 0:
             return
-        print('f3')
+        
         upper_avg = sum(upper_filtered) / len(upper_filtered)
         lower_avg = sum(lower_filtered) / len(lower_filtered)
 
@@ -262,12 +262,10 @@ async def main():
 
         if span_range == 0:
             return
-        print('f4')
         current_phi = distance / span_range
 
         print(
             f"Time: {(datetime.datetime.now(datetime.UTC).timestamp() - time):.2f} "
-            f"length of fucking shit: {len(filtered_data)} "
             f"Opt. Widespan (AU): {upper_avg:.2f} "
             f"| Opt. Smallspan (AU): {lower_avg:.2f} "
             f"| φ: {current_phi:.3f}"
@@ -279,7 +277,7 @@ async def main():
             on_packet=on_packet
         )
         global filtered_data, que
-        print('d', len(filtered_data), len(distance_history_queue))
+        
 
 
 if __name__ == "__main__":

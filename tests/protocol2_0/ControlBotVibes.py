@@ -240,14 +240,10 @@ async def main():
     live_time = []
 
     # QTM connection
-    # connection = await qtm_rt.connect("141.213.186.223", version="1.24")
+    connection = await qtm_rt.connect("141.213.186.223", version="1.24")
     # connection = await qtm_rt.connect("10.130.130.44", version="1.24")
     # connection = await qtm_rt.connect("10.231.3.44", version="1.24")
-
-    connection = await qtm_rt.connect(
-        "10.243.187.44",
-        version="1.24"
-    )
+    # connection = await qtm_rt.connect("10.243.187.44",version="1.24"
 
     if connection is None:
         print("Failed to connect")
