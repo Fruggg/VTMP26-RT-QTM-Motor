@@ -19,8 +19,8 @@ from pythonosc.osc_server import ThreadingOSCUDPServer
 # ============================================================
 
 # Participant is on the right, here
-BOT_SELECTION = "P"  # Options: "P" or "E"
-
+BOT_SELECTION = "E"  # Options: "P" or "E"
+BASE_ID = 10
 BOT_SELECTION = BOT_SELECTION.upper()
 
 if BOT_SELECTION not in ("P", "E"):
@@ -53,14 +53,15 @@ init_motor_2 = 0
 BAUDRATE = 2000000
 PROTOCOL_VERSION = 2.0
 
-left_motor_id = 21
-right_motor_id = 22
+left_motor_id = BASE_ID + 1
+right_motor_id = BASE_ID + 2
 
 flip_left = True
 flip_right = False
 clap_percent = 0
 
-DEVICENAME = '/dev/tty.usbserial-FT6S4EG7'
+# DEVICENAME = '/dev/tty.usbserial-FT6S4EG7'
+DEVICENAME = '/dev/tty.usbserial-FT763GF8'
 
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
@@ -146,7 +147,7 @@ def set_motor_positon(signal, sign, ID):
 
     # Say that we use the right pair of motors: that means they have IDs 21 and 22.
     # This offset allows us to factor that in
-    index_offset = 20 # do 20 if right and do 10 if left
+    index_offset = BASE_ID # do 20 if right and do 10 if left
     index = ID - 1 - index_offset
 
     things = [3103, 949]
