@@ -1,0 +1,424 @@
+
+import asyncio
+import collections
+import csv
+import datetime
+import time
+import xml.etree.ElementTree as ET
+
+import qtm_rt
+
+import numpy as np
+
+import tkinter as tk
+from dynamixel_sdk import *
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.osc_server import ThreadingOSCUDPServer
+
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+
+# Take data from participant (right) to control motors on left
+BOT_SELECTION = "P"  # Options: "P" or "E"
+BASE_ID = 10
+BOT_SELECTION = BOT_SELECTION.upper()
+
+if BOT_SELECTION not in ("P", "E"):
+    raise ValueError("BOT_SELECTION must be either 'P' or 'E'")
+
+body_names = {
+    "P": ["PR", "PL"],
+    "E": ["ER", "EL"]
+}
+
+# ---------------- DYNAMIXEL SETTINGS ----------------
+
+MY_DXL = 'X_SERIES'
+ADDR_TORQUE_ENABLE = 64
+ADDR_GOAL_POSITION = 116
+ADDR_PRESENT_POSITION = 132
+
+DXL_MINIMUM_POSITION_VALUE = 0
+DXL_MAXIMUM_POSITION_VALUE = 4095
+
+packet_counter = 0
+packet_modulo = 9
+
+init_motor_1 = 0
+init_motor_2 = 0
+
+BAUDRATE = 2000000
+PROTOCOL_VERSION = 2.0
+
+left_motor_id = BASE_ID + 1
+right_motor_id = BASE_ID + 2
+
+flip_left = True
+flip_right = False
+clap_percent = 0
+
+# Hard coded stuff
+participant_data = {
+    "P": {
+        "name": "Part",
+        "maxspan": None,
+        "minspan": None,
+        "distance_history": None,
+        "filtered_data": []
+    },
+    "E": {
+        "name": "Evan",
+        "maxspan": None,
+        "minspan": None,
+        "distance_history": None,
+        "filtered_data": []
+    }
+}
+
+# ---------------- QTM FUNCTIONS ----------------
+
+def create_body_index(xml_string):
+
+    xml = ET.fromstring(xml_string)
+
+    body_to_index = {}
+
+    for index, body in enumerate(xml.findall("*/Body/Name")):
+        body_to_index[index] = body.text.strip()
+
+    return body_to_index
+
+
+def body_enabled_count(xml_string):
+
+    xml = ET.fromstring(xml_string)
+
+    return sum(
+        enabled.text == "true"
+        for enabled in xml.findall("*/Body/Enabled")
+    )
+
+
+# ---------------- MAIN ----------------
+
+async def main():
+
+    time = datetime.datetime.now(datetime.UTC).timestamp()
+    global packet_counter
+    global clap_percent
+
+    
+    # KEEP THIS OUTSIDE on_packet
+    distance_memory_size = 2000
+
+    for participant in participant_data:
+        participant_data[participant]["distance_history"] = collections.deque(
+            maxlen=distance_memory_size
+        )
+   
+    print("Set init position!")
+
+    
+
+    x = [0]
+    y = [0]
+
+    live_data = []
+    live_time = []
+
+    # QTM connection
+    connection = await qtm_rt.connect(
+        "141.213.186.223",
+        version="1.24"
+    )
+
+    if connection is None:
+        print("Failed to connect")
+        return
+
+    print("Connected to QTM")
+
+    xml_string = await connection.get_parameters(
+        parameters=["6d"]
+    )
+
+    index_to_body = create_body_index(xml_string)
+
+    print(
+        "{} of {} 6DoF bodies enabled".format(
+            body_enabled_count(xml_string),
+            len(index_to_body)
+        )
+    )
+
+    # --------------------------------------------------------
+    # VERIFY SELECTED BODIES
+    # --------------------------------------------------------
+
+    body_to_index = {
+        name: index
+        for index, name in index_to_body.items()
+    }
+
+    
+    required_bodies = [
+        body
+        for participant in body_names
+        for body in body_names[participant]
+]
+
+    missing_bodies = [
+        name for name in required_bodies
+        if name not in body_to_index
+    ]
+
+    if missing_bodies:
+        print(
+            f"ERROR: Missing QTM bodies: {missing_bodies}"
+        )
+        print(
+            f"Available bodies: {list(body_to_index.keys())}"
+        )
+        return
+
+    # ---------------- QTM PACKET CALLBACK ----------------
+
+    def on_packet(packet):
+
+
+        global packet_counter
+        global clap_percent
+        global distance_history_queue_E
+        global distance_history_queue_P
+
+        packet_counter = (
+            packet_counter + 1
+        ) % packet_modulo
+
+        if packet_counter != 0:
+            return
+
+        info, bodies = packet.get_6d()
+
+        # ----------------------------------------------------
+        # EXTRACT SELECTED BODY POSITIONS
+        # ----------------------------------------------------
+
+        positions = []
+
+        for body_index, body_data in enumerate(bodies):
+            
+            body_name = index_to_body.get(
+                body_index,
+                f"Body_{body_index}"
+            )
+
+            position, rotation = body_data
+
+            new_pos = [
+                float(value)
+                for value in position
+            ]
+
+            positions.append([
+                body_name,
+                new_pos
+            ])
+
+        participant_positions = {}
+
+        for participant, bodies in body_names.items():
+            participant_positions[participant] = [
+                positions[body_to_index[body]]
+                for body in bodies
+            ]
+
+        # ---------------- DISTANCE ----------------
+        
+        for participant, participant_pos in participant_positions.items():
+
+            pos1 = participant_pos[0][1]
+            pos2 = participant_pos[1][1]
+
+            distance_x = abs(pos1[0] - pos2[0])
+            distance_y = abs(pos1[1] - pos2[1])
+            distance_z = abs(pos1[2] - pos2[2])
+
+            distance_norm = np.sqrt(
+                distance_x ** 2 +
+                distance_y ** 2 +
+                distance_z ** 2
+            )
+
+            distance = float(distance_norm)
+
+            # Add this measurement to persistent history
+            dhq = participant_data[participant]["distance_history"]
+            dhq.append(distance)
+
+            # Don't calculate statistics until we have enough data
+            if len(dhq) < 20:
+                print(
+                    f"Collecting data: "
+                    f"{len(dhq)}/20"
+                )
+                continue
+
+            history = np.array(dhq)
+
+            # Q1 and Q3
+            q1 = np.percentile(history, 25)
+            q3 = np.percentile(history, 75)
+
+            iqr = q3 - q1
+
+            # Outlier bounds
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+
+            filtered_data = participant_data[participant]["filtered_data"]
+
+            filtered_data.extend(
+                value
+                for value in dhq
+                if lower_bound <= value <= upper_bound
+            )
+            
+            filt_min = min(filtered_data)
+            filt_max = max(filtered_data)
+
+            filt_range = filt_max - filt_min
+
+            # Top 5%
+            upper_filtered = [
+                value
+                for value in filtered_data
+                if value >= 0.98 * filt_max
+            ]
+
+            # Bottom 5%
+            lower_filtered = [
+                value
+                for value in filtered_data
+                if value <= filt_min + 0.02 * filt_range
+            ]
+
+            upper_avg = sum(upper_filtered) / len(upper_filtered)
+            lower_avg = sum(lower_filtered) / len(lower_filtered)
+
+            span_range = abs(upper_avg - lower_avg)
+
+            current_phi = distance / span_range
+
+            if len(dhq) < 20:
+                print(f"{participant}: Insufficient history")
+                continue
+
+            if len(filtered_data) == 0:
+                print(f"{participant}: No filtered data")
+                continue
+
+            if filt_range == 0:
+                print(f"{participant}: Zero filtered range")
+                continue
+
+            if len(upper_filtered) == 0:
+                print(f"{participant}: No upper filtered values")
+                continue
+
+            if len(lower_filtered) == 0:
+                print(f"{participant}: No lower filtered values")
+                continue
+
+            if span_range == 0:
+                print(f"{participant}: Zero span range")
+                continue
+
+
+            # Store participant-specific span data
+            participant_data[participant]["maxspan"] = upper_avg
+            participant_data[participant]["minspan"] = lower_avg
+
+            print(
+                f"Subject: {participant} "
+                f"Time: {(datetime.datetime.now(datetime.UTC).timestamp() - time):.2f} "
+                f"Opt. Widespan (AU): {upper_avg:.2f} "
+                f"| Opt. Smallspan (AU): {lower_avg:.2f} "
+                f"| φ: {current_phi:.3f}"
+            )
+
+
+    # ---------------- START QTM STREAM ----------------
+
+    while True:
+
+        try:
+            await connection.stream_frames(
+                components=["6d"],
+                on_packet=on_packet
+            )
+        except Exception as e:
+
+            filename = "Wingspans.csv"
+
+            headers = [
+                f"{participant_data[p]['name']}_{span}"
+                for p in participant_data
+                for span in ["maxspan", "minspan"]
+            ]
+
+            # Read existing CSV data
+            try:
+                with open(filename, mode="r", newline="", encoding="utf-8") as file:
+                    reader = csv.reader(file)
+                    existing_headers = next(reader, [])
+                    existing_data = list(reader)
+
+            except FileNotFoundError:
+                existing_headers = []
+                existing_data = []
+
+            # Add only headers that don't already exist
+            new_headers = [
+                header for header in headers
+                if header not in existing_headers
+            ]
+
+            if new_headers:
+                existing_headers.extend(new_headers)
+
+                # Extend existing rows without overwriting existing values
+                for row in existing_data:
+                    row.extend([""] * len(new_headers))
+
+            # Create a row if the CSV is empty
+            if not existing_data:
+                existing_data.append([""] * len(existing_headers))
+
+            # Update only the columns corresponding to current participant names
+            for participant in participant_data:
+
+                for span in ["maxspan", "minspan"]:
+
+                    header = f"{participant_data[participant]['name']}_{span}"
+                    index = existing_headers.index(header)
+
+                    value = participant_data[participant][span]
+
+                    if value is not None:
+                        existing_data[0][index] = value
+
+            # Write everything back
+            with open(filename, mode="w", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow(existing_headers)
+                writer.writerows(existing_data)
+
+            print(f"Calibration saved. Stream error: {e}")
+            raise
+
+if __name__ == "__main__":
+    asyncio.run(main())

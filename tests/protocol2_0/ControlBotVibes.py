@@ -2,10 +2,8 @@ import asyncio
 import collections
 import time
 import xml.etree.ElementTree as ET
-from matplotlib import animation, style
 import qtm_rt
 import numpy as np
-import matplotlib.pyplot as plt
 
 import tkinter as tk
 from dynamixel_sdk import *

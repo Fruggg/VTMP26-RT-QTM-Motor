@@ -1,6 +1,7 @@
 
 import asyncio
 import collections
+import csv
 import time
 import xml.etree.ElementTree as ET
 
@@ -18,8 +19,9 @@ from pythonosc.osc_server import ThreadingOSCUDPServer
 # CONFIGURATION
 # ============================================================
 
-# Participant is on the right, here
-BOT_SELECTION = "E"  # Options: "P" or "E"
+
+# Take data from participant (right) to control motors on left
+BOT_SELECTION = "P"  # Options: "P" or "E"
 BASE_ID = 10
 BOT_SELECTION = BOT_SELECTION.upper()
 
@@ -60,6 +62,16 @@ flip_left = True
 flip_right = False
 clap_percent = 0
 
+# Hard coded stuff
+
+P_maxspan = None
+P_minspan = None
+# ---------
+E_maxspan = None
+E_minspan = None
+
+
+
 # DEVICENAME = '/dev/tty.usbserial-FT6S4EG7'
 DEVICENAME = '/dev/tty.usbserial-FT763GF8'
 
@@ -69,36 +81,6 @@ TORQUE_DISABLE = 0
 
 # ---------------- PARTICIPANT SETTINGS ----------------
 
-participants = [
-    {
-        'Name': "Zeke",
-        "Minspan": 77,
-        "Elbowspan": 879,
-        "Wingspan": None
-    },
-
-    {
-        'Name': "Evan",
-        "Minspan": 68.05,
-        "Elbowspan": None,
-        "Wingspan": 1482
-    },
-]
-
-chosen_participant_stats = 'Zeke'
-
-chosen_participant = next(
-    part for part in participants
-    if part["Name"].upper() == chosen_participant_stats.upper()
-)
-
-smallspan = chosen_participant["Minspan"]
-
-bigspan = (
-    chosen_participant["Elbowspan"]
-    if chosen_participant["Elbowspan"] is not None
-    else chosen_participant["Wingspan"]
-)
 
 
 FLAG_print_everything_because_we_like_wasting_time = False
@@ -228,6 +210,18 @@ async def main():
 
     global clap_percent
     global packet_counter
+    
+    with open('Wingspans.csv', mode='r', newline='', encoding='utf-8') as file:
+    # Read in the values for the wingspans 
+        global P_maxspan
+        global P_minspan
+        global E_maxspan
+        global E_minspan
+        reader = csv.DictReader(file)
+        P_maxspan = reader[0]['Part_maxspan']
+        P_minspan = reader[0]['Part_minspan']
+        E_maxspan = reader[0]['Evan_maxspan']
+        E_minspan = reader[0]['Evan_minspan']
 
     print("Set init position!")
 
@@ -354,7 +348,11 @@ async def main():
 
         # ---------------- CLAP PERCENT ----------------
 
-        span_range = bigspan - smallspan
+        bigspan = P_maxspan if BOT_SELECTION is "P" else E_maxspan
+        minspan = P_minspan if BOT_SELECTION is "P" else E_minspan
+
+
+        span_range = bigspan - minspan
 
         if span_range == 0:
             print("ERROR: bigspan and smallspan are equal")
