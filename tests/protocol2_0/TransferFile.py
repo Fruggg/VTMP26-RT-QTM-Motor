@@ -121,7 +121,7 @@ async def main():
     global packet_counter
 
     client = SimpleUDPClient(UNITY_IP, UNITY_PORT)
-    asyncio.sleep(500)
+    await asyncio.sleep(.500)
     
     with open('Wingspans.csv', mode='r', newline='', encoding='utf-8') as file:
     # Read in the values for the wingspans 
@@ -285,9 +285,12 @@ async def main():
 
         left = clap_percent * MAX_DEG
         right = -clap_percent * MAX_DEG
-        
-        client.send_message("/vtmp/display/A", [60, left, right])
-        asyncio.sleep(200)
+        print("Sending OSC:", [60, left, right])
+
+        try:
+            client.send_message("/vtmp/display/A", [60, float(left), float(right)])
+        except Exception as e:
+            print("OSC SEND ERROR:", e)
 
 
     # ---------------- START QTM STREAM ----------------
