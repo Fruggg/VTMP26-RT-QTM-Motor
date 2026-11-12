@@ -20,19 +20,19 @@ from pythonosc.osc_server import ThreadingOSCUDPServer
 # ============================================================
 
 
-# Take data from participant (right) to control motors on left
-BOT_SELECTION = "P"  # Options: "P" or "E"
-BASE_ID = 10
-BOT_SELECTION = BOT_SELECTION.upper()
 
-if BOT_SELECTION not in ("P", "E"):
+CLAPPER_SELECTION = "P"  # Options: "P" or "E"
+BASE_ID = 20
+CLAPPER_SELECTION = CLAPPER_SELECTION.upper()
+
+if CLAPPER_SELECTION not in ("P", "E"):
     raise ValueError("BOT_SELECTION must be either 'P' or 'E'")
 
 # Automatically select QTM body names
-LEFT_BODY_NAME = f"{BOT_SELECTION}L"
-RIGHT_BODY_NAME = f"{BOT_SELECTION}R"
+LEFT_BODY_NAME = f"{CLAPPER_SELECTION}L"
+RIGHT_BODY_NAME = f"{CLAPPER_SELECTION}R"
 
-print(f"Selected bot: {BOT_SELECTION}")
+print(f"Selected bot: {CLAPPER_SELECTION}")
 print(f"Tracking bodies: {LEFT_BODY_NAME}, {RIGHT_BODY_NAME}")
 
 
@@ -218,10 +218,19 @@ async def main():
         global E_maxspan
         global E_minspan
         reader = csv.DictReader(file)
-        P_maxspan = reader[0]['Part_maxspan']
-        P_minspan = reader[0]['Part_minspan']
-        E_maxspan = reader[0]['Evan_maxspan']
-        E_minspan = reader[0]['Evan_minspan']
+        
+        reader = next(reader, None)
+        
+        P_maxspan = float(reader['Part_maxspan'])
+        P_minspan = float(reader['Part_minspan'])
+        E_maxspan = float(reader['Evan_maxspan'])
+        E_minspan = float(reader['Evan_minspan'])
+        print("hey!", P_maxspan)
+        print("hey!", P_minspan)
+        print("hey!", E_maxspan)
+        print("hey!", E_minspan)
+
+
 
     print("Set init position!")
 
@@ -348,8 +357,8 @@ async def main():
 
         # ---------------- CLAP PERCENT ----------------
 
-        bigspan = P_maxspan if BOT_SELECTION is "P" else E_maxspan
-        minspan = P_minspan if BOT_SELECTION is "P" else E_minspan
+        bigspan = P_maxspan if CLAPPER_SELECTION is "P" else E_maxspan
+        minspan = P_minspan if CLAPPER_SELECTION is "P" else E_minspan
 
 
         span_range = bigspan - minspan
